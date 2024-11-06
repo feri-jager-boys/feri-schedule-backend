@@ -1,10 +1,15 @@
 const puppeteer = require("puppeteer");
 
-const url =
-    "https://www.wise-tt.com/wtt_um_feri/index.jsp?filterId=0;389,569;0;0;"; // RIT MAG 1.letnik
+const url = "https://www.wise-tt.com/wtt_um_feri/index.jsp";
 
 const openWeekXPath = '//*[@id="form:j_idt147"]';
-const currentWeekXPath = '//*[@id="form:j_idt147_input"]';
+const selectedWeekXPath = '//*[@id="form:j_idt147_label"]';
+
+const openProgramXPath = '//*[@id="form:j_idt175"]';
+const selectedProgramXPath = '//*[@id="form:j_idt175_label"]';
+
+const openYearXPath = '//*[@id="form:j_idt179"]';
+const selectedYearXPath = '//*[@id="form:j_idt179_label"]';
 
 const startTime = 7;
 
@@ -21,46 +26,85 @@ const getFullSchedule = async (result) => {
             waitUntil: "domcontentloaded",
         });
 
-        const [selectedWeekElement] = await page.$x(currentWeekXPath);
+        let schedule = [];
 
-        const selectedWeekValue = await selectedWeekElement.evaluate(
-            (select) => select.value
-        );
+        const [selectProgram1] = await page.$x(openProgramXPath);
+        const programOptions = await selectProgram1.$$("option");
 
-        const [selectWeek] = await page.$x(openWeekXPath);
+        for (let i = 0; i < programOptions.length - 1; i++) {
+            const [selectProgram] = await page.$x(openProgramXPath);
+            await selectProgram.click();
+            await page.keyboard.press("ArrowDown");
+            await page.keyboard.press("Enter");
 
-        await selectWeek.click();
-        for (let i = 0; i < selectedWeekValue; i++) {
+            const [currentProgramLabel] = await page.$x(selectedProgramXPath);
+            const currentProgramName = await currentProgramLabel.evaluate((select) => select.textContent);
+
+            await new Promise((resolve) => setTimeout(resolve, 2000));
+
+            await getScheduleForProgram(page, schedule, currentProgramName);
+        }
+
+        resolve(schedule);
+
+        await browser.close();
+    });
+};
+
+const getScheduleForProgram = async (page, schedule, currentProgram) => {
+    const [selectYear] = await page.$x(openYearXPath);
+    const yearOptions = await selectYear.$$("option");
+
+    const [selectWeek] = await page.$x(openWeekXPath);
+    const weekOptions = await selectWeek.$$("option");
+
+    for (let i = 0; i < yearOptions.length; i++) {
+        if (i !== 0) {
+            const [selectYear] = await page.$x(openYearXPath);
+            await selectYear.click();
+            await page.keyboard.press("ArrowDown");
+            await page.keyboard.press("Enter");
+        }
+
+        const [currentWeekLabel] = await page.$x(selectedWeekXPath);
+        const currentWeekNum = await currentWeekLabel.evaluate((select) => select.textContent);
+
+        const [selectWeek2] = await page.$x(openWeekXPath);
+        await selectWeek2.click();
+        for (let k = 0; k < Number(currentWeekNum); k++) {
             await page.keyboard.press("ArrowUp");
         }
         await page.keyboard.press("Enter");
 
-        let schedule = [];
-
-        for (let i = 1; i < 52; i++) {
-            if (i !== 1) {
+        for (let j = 0; j < weekOptions.length; j++) {
+            if (j !== 0) {
                 const [selectWeek] = await page.$x(openWeekXPath);
                 await selectWeek.click();
                 await page.keyboard.press("ArrowDown");
                 await page.keyboard.press("Enter");
             }
 
+            const [currentWeekLabel] = await page.$x(selectedWeekXPath);
+            const currentWeekNum = await currentWeekLabel.evaluate((select) => select.textContent);
+
+            const [currentYearLabel] = await page.$x(selectedYearXPath);
+            const currentYearNum = await currentYearLabel.evaluate((select) => select.textContent);
+
             await new Promise((resolve) => setTimeout(resolve, 500));
 
             const calendarTable = await page.$("#mainCalendar");
             if (calendarTable) {
-                await getScheduleForWeek(calendarTable, schedule, i);
+                await getScheduleForWeek(calendarTable, schedule, currentWeekNum, currentProgram, currentYearNum);
             } else {
                 console.error("Calendar table not found after DOM change.");
             }
         }
+    }
 
-        resolve(schedule);
-        await browser.close();
-    });
+    return schedule;
 };
 
-const getScheduleForWeek = async (calendarTable, schedule, week) => {
+const getScheduleForWeek = async (calendarTable, schedule, week, program, year) => {
     if (calendarTable) {
         const inputs = await calendarTable.$$("input");
 
@@ -113,6 +157,8 @@ const getScheduleForWeek = async (calendarTable, schedule, week) => {
                         day,
                         time,
                         week,
+                        program,
+                        year,
                     });
                 }
             }
