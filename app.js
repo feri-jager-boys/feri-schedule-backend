@@ -7,8 +7,11 @@ const session = require('express-session');
 
 const updateDataRouter = require('./routes/updateData');
 const scheduleRouter = require('./routes/schedule');
+const cron = require('node-cron');
 
 const app = express();
+
+const {updateSchedule} = require('./implementations/updateData');
 
 const {connectToMongoDB} = require('./database/connection');
 
@@ -23,6 +26,11 @@ app.use('/schedule', scheduleRouter);
 
 app.use(express.json());
 
+cron.schedule('0 0 * * *', async () => {
+  console.log('Updating schedule...')
+  await updateSchedule();
+  console.log('Schedule updated.')
+});
 
 app.use(cookieParser());
 app.use(bodyParser.urlencoded({extended: true}));
