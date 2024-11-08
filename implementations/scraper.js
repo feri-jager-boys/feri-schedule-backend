@@ -18,6 +18,8 @@ const weekValueCssSelector = "#form\\:j_idt147_label";
 const weekOptionsCssSelector = "#form\\:j_idt147 option";
 const weekDirectValueClickCssSelector = "#form\\:j_idt147_";
 
+const htmlProgressClassName = "progress";
+
 const startTime = 7;
 
 const getFullSchedule = async (result) => {
@@ -43,7 +45,7 @@ const getFullSchedule = async (result) => {
             await page.$eval(programClickCssSelector, el => el.click());
             await page.$eval(programDirectValueClickCssSelector + i.toString(), el => el.click());
 
-            await new Promise((resolve) => setTimeout(resolve, 200));
+            await new Promise((resolve) => setTimeout(resolve, 500));
 
             const currentProgramName = await page.$eval(programValueCssSelector, (select) => select.textContent);
 
@@ -65,6 +67,8 @@ const getScheduleForProgram = async (page, schedule, currentProgram) => {
     for (let i = 1; i < yearOptions.length; i++) {
         console.log(`>> year ${i}`);
 
+        await page.waitForFunction((cls) => { return !document.documentElement.classList.contains(cls) }, htmlProgressClassName);
+
         if (i !== 0) {
             await page.$eval(yearClickCssSelector, el => el.click());
             await page.$eval(yearDirectValueClickCssSelector + i, el => el.click());
@@ -74,22 +78,17 @@ const getScheduleForProgram = async (page, schedule, currentProgram) => {
             await page.waitForFunction(
                 (select, value) => { return document.querySelector(select).textContent === value.toString() },
                 {}, yearValueCssSelector, i);
-
-            await new Promise((resolve) => setTimeout(resolve, 100));
         }
 
         const currentYearNum = await page.$eval(yearValueCssSelector, (select) => select.textContent);
-
         assert(currentYearNum === i.toString(), `Current year must be ${i} at this point and not '${currentYearNum}'`);
 
         console.log(">>> moving week to 1");
 
         await page.$eval(weekClickCssSelector, el => el.click());
-        await new Promise((resolve) => setTimeout(resolve, 100));
-
         await page.$eval(weekDirectValueClickCssSelector + "0", el => el.click());
 
-        await new Promise((resolve) => setTimeout(resolve, 500));
+        await new Promise((resolve) => setTimeout(resolve, 200));
 
         await page.waitForFunction(
             (select, value) => { return document.querySelector(select).textContent === value.toString() },
@@ -103,17 +102,19 @@ const getScheduleForProgram = async (page, schedule, currentProgram) => {
         for (let j = 1; j <= weekOptions.length; j++) {
             process.stdout.write(`${j} `)
 
+            await page.waitForFunction((cls) => { return !document.documentElement.classList.contains(cls) }, htmlProgressClassName);
+
             if (j !== 1) {
                 await page.$eval(weekClickCssSelector, el => el.click());
-                await new Promise((resolve) => setTimeout(resolve, 100));
                 await page.$eval(weekDirectValueClickCssSelector + (j - 1).toString(), el => el.click());
+
                 await new Promise((resolve) => setTimeout(resolve, 500));
+
+                await page.waitForFunction((cls) => { return !document.documentElement.classList.contains(cls) }, htmlProgressClassName);
 
                 await page.waitForFunction(
                     (select, value) => { return document.querySelector(select).textContent === value.toString() },
                     {}, weekValueCssSelector, j);
-
-                await new Promise((resolve) => setTimeout(resolve, 100));
             }
 
             const testWeek = await page.$eval(weekValueCssSelector, (select) => select.textContent);
@@ -125,8 +126,6 @@ const getScheduleForProgram = async (page, schedule, currentProgram) => {
             } else {
                 console.error("Calendar table not found after DOM change.");
             }
-
-            await new Promise((resolve) => setTimeout(resolve, 300));
         }
 
         process.stdout.write("DONE\n")
