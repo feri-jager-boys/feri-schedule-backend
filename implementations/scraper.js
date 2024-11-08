@@ -6,14 +6,17 @@ const url = "https://www.wise-tt.com/wtt_um_feri/index.jsp";
 const programClickCssSelector = "#form\\:j_idt175";
 const programValueCssSelector = "#form\\:j_idt175_label";
 const programOptionsCssSelector = "#form\\:j_idt175 option";
+const programDirectValueClickCssSelector = "#form\\:j_idt175_";
 
 const yearClickCssSelector = "#form\\:j_idt179";
 const yearValueCssSelector = "#form\\:j_idt179_label";
 const yearOptionsCssSelector = "#form\\:j_idt179 option";
+const yearDirectValueClickCssSelector = "#form\\:j_idt179_";
 
 const weekClickCssSelector = "#form\\:j_idt147";
 const weekValueCssSelector = "#form\\:j_idt147_label";
 const weekOptionsCssSelector = "#form\\:j_idt147 option";
+const weekDirectValueClickCssSelector = "#form\\:j_idt147_";
 
 const startTime = 7;
 
@@ -36,11 +39,11 @@ const getFullSchedule = async (result) => {
 
         console.log("Starting to parse")
 
-        for (let i = 0; i < programOptions.length - 1; i++) {
-            await (await page.$(programClickCssSelector)).click();
-            await page.keyboard.press("ArrowDown");
-            await page.keyboard.press("Enter");
-            await new Promise((resolve) => setTimeout(resolve, 500));
+        for (let i = 1; i < programOptions.length; i++) {
+            await page.$eval(programClickCssSelector, el => el.click());
+            await page.$eval(programDirectValueClickCssSelector + i.toString(), el => el.click());
+
+            await new Promise((resolve) => setTimeout(resolve, 200));
 
             const currentProgramName = await page.$eval(programValueCssSelector, (select) => select.textContent);
 
@@ -59,73 +62,59 @@ const getScheduleForProgram = async (page, schedule, currentProgram) => {
     const yearOptions = await page.$$(yearOptionsCssSelector);
     const weekOptions = await page.$$(weekOptionsCssSelector);
 
-    for (let i = 0; i < yearOptions.length - 1; i++) {
-        process.stdout.write(`>> year ${i}: `)
+    for (let i = 1; i < yearOptions.length; i++) {
+        console.log(`>> year ${i}`);
 
         if (i !== 0) {
-            process.stdout.write("selecting... ");
+            await page.$eval(yearClickCssSelector, el => el.click());
+            await page.$eval(yearDirectValueClickCssSelector + i, el => el.click());
 
-            await (await page.$(yearClickCssSelector)).click();
-            await page.keyboard.press("ArrowDown");
             await new Promise((resolve) => setTimeout(resolve, 500));
 
             await page.waitForFunction(
                 (select, value) => { return document.querySelector(select).textContent === value.toString() },
-                {}, yearValueCssSelector, i + 1);
+                {}, yearValueCssSelector, i);
 
-            await page.keyboard.press("Enter");
             await new Promise((resolve) => setTimeout(resolve, 100));
         }
 
-        process.stdout.write("parsing...\n");
-
         const currentYearNum = await page.$eval(yearValueCssSelector, (select) => select.textContent);
 
-        assert(currentYearNum === (i + 1).toString(), `Current year must be ${i + 1} at this point and not '${currentYearNum}'`);
+        assert(currentYearNum === i.toString(), `Current year must be ${i} at this point and not '${currentYearNum}'`);
 
-        await (await page.$(weekClickCssSelector)).click();
+        console.log(">>> moving week to 1");
+
+        await page.$eval(weekClickCssSelector, el => el.click());
         await new Promise((resolve) => setTimeout(resolve, 100));
 
-        const currentWeekNum = await page.$eval(weekValueCssSelector, (select) => select.textContent);
+        await page.$eval(weekDirectValueClickCssSelector + "0", el => el.click());
 
-        process.stdout.write(`>>> Moving week from ${currentWeekNum} to 1: `);
+        await new Promise((resolve) => setTimeout(resolve, 500));
 
-        for (let j = Number(currentWeekNum) - 1; j >= 1; j--) {
-            process.stdout.write(`${j} `);
-
-            await page.keyboard.press("ArrowUp");
-            await new Promise((resolve) => setTimeout(resolve, 500));
-
-            await page.waitForFunction(
-                (select, value) => { return document.querySelector(select).textContent === value.toString() },
-                {}, weekValueCssSelector, j);
-        }
-
-        process.stdout.write("DONE\n");
-
-        await page.keyboard.press("Enter");
-        await new Promise((resolve) => setTimeout(resolve, 100));
+        await page.waitForFunction(
+            (select, value) => { return document.querySelector(select).textContent === value.toString() },
+            {}, weekValueCssSelector, 1);
 
         const testWeek = await page.$eval(weekValueCssSelector, (select) => select.textContent);
         assert(testWeek === "1", `Current week must be 1 at this point and not '${testWeek}'`);
 
-        for (let j = 1; j <= weekOptions.length; j++) {
-            process.stdout.write(`>>> week ${j}: `)
-            if (j !== 1) {
-                process.stdout.write("selecting... ");
+        process.stdout.write(">>> parsing week... ")
 
-                await (await page.$(weekClickCssSelector)).click();
+        for (let j = 1; j <= weekOptions.length; j++) {
+            process.stdout.write(`${j} `)
+
+            if (j !== 1) {
+                await page.$eval(weekClickCssSelector, el => el.click());
                 await new Promise((resolve) => setTimeout(resolve, 100));
-                await page.keyboard.press("ArrowDown");
+                await page.$eval(weekDirectValueClickCssSelector + (j - 1).toString(), el => el.click());
                 await new Promise((resolve) => setTimeout(resolve, 500));
 
                 await page.waitForFunction(
                     (select, value) => { return document.querySelector(select).textContent === value.toString() },
                     {}, weekValueCssSelector, j);
 
-                await page.keyboard.press("Enter");
+                await new Promise((resolve) => setTimeout(resolve, 100));
             }
-            process.stdout.write("parsing...\n");
 
             const testWeek = await page.$eval(weekValueCssSelector, (select) => select.textContent);
             assert(testWeek === j.toString(), `Current week must be '${j}' at this point and not '${testWeek}'`);
@@ -137,8 +126,10 @@ const getScheduleForProgram = async (page, schedule, currentProgram) => {
                 console.error("Calendar table not found after DOM change.");
             }
 
-            await new Promise((resolve) => setTimeout(resolve, 200));
+            await new Promise((resolve) => setTimeout(resolve, 300));
         }
+
+        process.stdout.write("DONE\n")
     }
 
     return schedule;
