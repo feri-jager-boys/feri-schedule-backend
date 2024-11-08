@@ -1,22 +1,26 @@
 const puppeteer = require("puppeteer");
+const assert = require("node:assert");
 
 const url = "https://www.wise-tt.com/wtt_um_feri/index.jsp";
 
-const openWeekXPath = '//*[@id="form:j_idt147"]';
-const selectedWeekXPath = '//*[@id="form:j_idt147_label"]';
+const programClickCssSelector = "#form\\:j_idt175";
+const programValueCssSelector = "#form\\:j_idt175_label";
+const programOptionsCssSelector = "#form\\:j_idt175 option";
 
-const openProgramXPath = '//*[@id="form:j_idt175"]';
-const selectedProgramXPath = '//*[@id="form:j_idt175_label"]';
+const yearClickCssSelector = "#form\\:j_idt179";
+const yearValueCssSelector = "#form\\:j_idt179_label";
+const yearOptionsCssSelector = "#form\\:j_idt179 option";
 
-const openYearXPath = '//*[@id="form:j_idt179"]';
-const selectedYearXPath = '//*[@id="form:j_idt179_label"]';
+const weekClickCssSelector = "#form\\:j_idt147";
+const weekValueCssSelector = "#form\\:j_idt147_label";
+const weekOptionsCssSelector = "#form\\:j_idt147 option";
 
 const startTime = 7;
 
 const getFullSchedule = async (result) => {
     return new Promise(async (resolve, reject) => {
         const browser = await puppeteer.launch({
-            headless: true,
+            headless: "new",
             defaultViewport: null,
         });
 
@@ -28,19 +32,19 @@ const getFullSchedule = async (result) => {
 
         let schedule = [];
 
-        const [selectProgram1] = await page.$x(openProgramXPath);
-        const programOptions = await selectProgram1.$$("option");
+        const programOptions = await page.$$(programOptionsCssSelector);
+
+        console.log("Starting to parse")
 
         for (let i = 0; i < programOptions.length - 1; i++) {
-            const [selectProgram] = await page.$x(openProgramXPath);
-            await selectProgram.click();
+            await (await page.$(programClickCssSelector)).click();
             await page.keyboard.press("ArrowDown");
             await page.keyboard.press("Enter");
+            await new Promise((resolve) => setTimeout(resolve, 500));
 
-            const [currentProgramLabel] = await page.$x(selectedProgramXPath);
-            const currentProgramName = await currentProgramLabel.evaluate((select) => select.textContent);
+            const currentProgramName = await page.$eval(programValueCssSelector, (select) => select.textContent);
 
-            await new Promise((resolve) => setTimeout(resolve, 2000));
+            console.log(`> program ${currentProgramName}`)
 
             await getScheduleForProgram(page, schedule, currentProgramName);
         }
@@ -52,52 +56,88 @@ const getFullSchedule = async (result) => {
 };
 
 const getScheduleForProgram = async (page, schedule, currentProgram) => {
-    const [selectYear] = await page.$x(openYearXPath);
-    const yearOptions = await selectYear.$$("option");
+    const yearOptions = await page.$$(yearOptionsCssSelector);
+    const weekOptions = await page.$$(weekOptionsCssSelector);
 
-    const [selectWeek] = await page.$x(openWeekXPath);
-    const weekOptions = await selectWeek.$$("option");
+    for (let i = 0; i < yearOptions.length - 1; i++) {
+        process.stdout.write(`>> year ${i}: `)
 
-    for (let i = 0; i < yearOptions.length; i++) {
         if (i !== 0) {
-            const [selectYear] = await page.$x(openYearXPath);
-            await selectYear.click();
+            process.stdout.write("selecting... ");
+
+            await (await page.$(yearClickCssSelector)).click();
             await page.keyboard.press("ArrowDown");
+            await new Promise((resolve) => setTimeout(resolve, 500));
+
+            await page.waitForFunction(
+                (select, value) => { return document.querySelector(select).textContent === value.toString() },
+                {}, yearValueCssSelector, i + 1);
+
             await page.keyboard.press("Enter");
+            await new Promise((resolve) => setTimeout(resolve, 100));
         }
 
-        const [currentWeekLabel] = await page.$x(selectedWeekXPath);
-        const currentWeekNum = await currentWeekLabel.evaluate((select) => select.textContent);
+        process.stdout.write("parsing...\n");
 
-        const [selectWeek2] = await page.$x(openWeekXPath);
-        await selectWeek2.click();
-        for (let k = 0; k < Number(currentWeekNum); k++) {
+        const currentYearNum = await page.$eval(yearValueCssSelector, (select) => select.textContent);
+
+        assert(currentYearNum === (i + 1).toString(), `Current year must be ${i + 1} at this point and not '${currentYearNum}'`);
+
+        await (await page.$(weekClickCssSelector)).click();
+        await new Promise((resolve) => setTimeout(resolve, 100));
+
+        const currentWeekNum = await page.$eval(weekValueCssSelector, (select) => select.textContent);
+
+        process.stdout.write(`>>> Moving week from ${currentWeekNum} to 1: `);
+
+        for (let j = Number(currentWeekNum) - 1; j >= 1; j--) {
+            process.stdout.write(`${j} `);
+
             await page.keyboard.press("ArrowUp");
-        }
-        await page.keyboard.press("Enter");
+            await new Promise((resolve) => setTimeout(resolve, 500));
 
-        for (let j = 0; j < weekOptions.length; j++) {
-            if (j !== 0) {
-                const [selectWeek] = await page.$x(openWeekXPath);
-                await selectWeek.click();
+            await page.waitForFunction(
+                (select, value) => { return document.querySelector(select).textContent === value.toString() },
+                {}, weekValueCssSelector, j);
+        }
+
+        process.stdout.write("DONE\n");
+
+        await page.keyboard.press("Enter");
+        await new Promise((resolve) => setTimeout(resolve, 100));
+
+        const testWeek = await page.$eval(weekValueCssSelector, (select) => select.textContent);
+        assert(testWeek === "1", `Current week must be 1 at this point and not '${testWeek}'`);
+
+        for (let j = 1; j <= weekOptions.length; j++) {
+            process.stdout.write(`>>> week ${j}: `)
+            if (j !== 1) {
+                process.stdout.write("selecting... ");
+
+                await (await page.$(weekClickCssSelector)).click();
+                await new Promise((resolve) => setTimeout(resolve, 100));
                 await page.keyboard.press("ArrowDown");
+                await new Promise((resolve) => setTimeout(resolve, 500));
+
+                await page.waitForFunction(
+                    (select, value) => { return document.querySelector(select).textContent === value.toString() },
+                    {}, weekValueCssSelector, j);
+
                 await page.keyboard.press("Enter");
             }
+            process.stdout.write("parsing...\n");
 
-            const [currentWeekLabel] = await page.$x(selectedWeekXPath);
-            const currentWeekNum = await currentWeekLabel.evaluate((select) => select.textContent);
-
-            const [currentYearLabel] = await page.$x(selectedYearXPath);
-            const currentYearNum = await currentYearLabel.evaluate((select) => select.textContent);
-
-            await new Promise((resolve) => setTimeout(resolve, 500));
+            const testWeek = await page.$eval(weekValueCssSelector, (select) => select.textContent);
+            assert(testWeek === j.toString(), `Current week must be '${j}' at this point and not '${testWeek}'`);
 
             const calendarTable = await page.$("#mainCalendar");
             if (calendarTable) {
-                await getScheduleForWeek(calendarTable, schedule, currentWeekNum, currentProgram, currentYearNum);
+                await getScheduleForWeek(calendarTable, schedule, j, currentProgram, currentYearNum);
             } else {
                 console.error("Calendar table not found after DOM change.");
             }
+
+            await new Promise((resolve) => setTimeout(resolve, 200));
         }
     }
 
