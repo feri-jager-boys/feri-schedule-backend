@@ -1,15 +1,12 @@
-const {getConnection} = require('../database/connection');
+const Schedule = require('../models/schedule');
 
 const getFullSchedule = async () => {
     try {
-        const db = getConnection();
-        const collection = db.db("schedule_generator").collection("schedule_items");
-
-        const documents = await collection.find({}).toArray();
-        return documents;
-    } catch (err) {
-        console.error('Error fetching documents:', err);
-        throw err;
+        const schedules = await Schedule.find();
+        return schedules;
+    } catch (error) {
+        console.error("Error fetching schedules:", error);
+        throw error;
     }
 };
 

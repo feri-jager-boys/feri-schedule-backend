@@ -1,27 +1,17 @@
-const { connectionInfo } = require('./connectionInfo');
-const { MongoClient } = require('mongodb');
+const mongoose = require("mongoose");
+const {connectionString} = require("./connectioninfo");
 
-let client;
-
-const connectToMongoDB = async () => {
+async function connectToDatabase() {
     try {
-        if (!client) {
-            client = await MongoClient.connect(connectionInfo.connectionString, { useNewUrlParser: true });
-            console.log("Connected to MongoDB");
-        }
-        return client;
-    } catch (e) {
-        console.error("Error connecting to MongoDB:", e);
-        throw e;
+        await mongoose.connect(connectionString, {
+            useNewUrlParser: true,
+            useUnifiedTopology: true,
+        });
+        console.log('Connected to MongoDB successfully');
+    } catch (error) {
+        console.error('Failed to connect to MongoDB:', error);
+        throw error;
     }
-};
+}
 
-const getConnection = () => {
-    if (!client) {
-        console.error("MongoDB client is not connected. Call connectToMongoDB first.");
-        return null;
-    }
-    return client;
-};
-
-module.exports = { connectToMongoDB, getConnection };
+module.exports = { connectToDatabase };

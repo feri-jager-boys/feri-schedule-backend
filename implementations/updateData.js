@@ -1,13 +1,11 @@
-const {getConnection} = require('../database/connection');
 const {getFullSchedule, scrape} = require('./scraper');
+const Schedule = require('../models/schedule');
 
 const updateSchedule = async () => {
-    const db = getConnection();
-    const collection = db.db("schedule_generator").collection("schedule_items");
 
-    await getFullSchedule().then((result) => {
-        collection.deleteMany({})
-        collection.insertMany(result);
+    await getFullSchedule().then(async (result) => {
+        await Schedule.deleteMany({});
+        await Schedule.insertMany(result);
     },
         (error) => {
             console.log(error)

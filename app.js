@@ -1,19 +1,17 @@
 const express = require('express');
 const cors = require('cors');
-
 const bodyParser = require('body-parser');
 const cookieParser = require('cookie-parser');
-const session = require('express-session');
-
-const updateDataRouter = require('./routes/updateData');
-const scheduleRouter = require('./routes/schedule');
 const cron = require('node-cron');
 
+const { authenticateJWT } = require('./middleware');
+const updateDataRouter = require('./routes/updateData');
+const scheduleRouter = require('./routes/schedule');
+const usersRouter = require('./routes/users');
+
 const app = express();
-
-const {updateSchedule} = require('./implementations/updateData');
-
-const {connectToMongoDB} = require('./database/connection');
+const { updateSchedule } = require('./implementations/updateData');
+const { connectToMongoDB, connectToDatabase} = require('./database/connection');
 
 app.use(cors({
   origin: ["http://localhost:4200"],
@@ -21,33 +19,25 @@ app.use(cors({
   credentials: true
 }));
 
+// Move the JSON parser here
+app.use(express.json());
+app.use(cookieParser());
+app.use(bodyParser.urlencoded({ extended: true }));
+
+// Routes come after the parsers
 app.use('/update', updateDataRouter);
 app.use('/schedule', scheduleRouter);
-
-app.use(express.json());
+app.use('/users', usersRouter);
 
 cron.schedule('0 0 * * *', async () => {
-  console.log('Updating schedule...')
+  console.log('Updating schedule...');
   await updateSchedule();
-  console.log('Schedule updated.')
+  console.log('Schedule updated.');
 });
-
-app.use(cookieParser());
-app.use(bodyParser.urlencoded({extended: true}));
-
-app.use(session({
-  key: "userId",
-  secret: "this-should-be-something-very-secret",
-  resave: false,
-  saveUninitialized: false,
-  cookie: {
-    expires: 3600 * 3600
-  }
-}))
 
 const PORT = 3080;
 
 app.listen(PORT, () => {
-  connectToMongoDB().then(() => {});
+  connectToDatabase();
   console.log("App listening at port 3080.");
-})
+});
