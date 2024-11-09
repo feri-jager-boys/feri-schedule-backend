@@ -24,7 +24,15 @@ const weekDirectValueClickCssSelector = "#form\\:j_idt147_";
 
 const htmlProgressClassName = "progress";
 
-const startTime = 7;
+const dialogClass = "#dialogShowDetail";
+const dialogGroupTable = "#showDetailForm\\:groupVar_data";
+const dialogProfessorTable = "#showDetailForm\\:tutorVar_data";
+const dialogClassroomTable = "#showDetailForm\\:roomVar_data";
+const dialogSubjectTable = "#showDetailForm\\:courseVar_data";
+const dialogHourFromField = "#showDetailForm\\:j_idt1350";
+const dialogHourToField = "#showDetailForm\\:j_idt1354";
+const dialogTypeField = "#showDetailForm\\:j_idt1363";
+const dialogCloseButton = "#dialogShowDetail .ui-dialog-titlebar-close";
 
 const setFullSchedule = async (_) => {
     return new Promise(async (resolve, reject) => {
@@ -129,7 +137,9 @@ const setScheduleForProgram = async (page, programModel) => {
 
         process.stdout.write(">>> parsing week... ")
 
-        for (let j = 1; j <= weekOptions.length; j++) {
+        for (let j = 1; j <= 20; j++) {
+            // for (let j = 1; j <= weekOptions.length; j++) {
+            // possible to ignore half of school year as the non-current one is usually empty
             process.stdout.write(`${j} `)
 
             await page.waitForFunction(
@@ -154,7 +164,7 @@ const setScheduleForProgram = async (page, programModel) => {
 
             const calendarTable = await page.$("#mainCalendar");
             if (calendarTable) {
-                await setScheduleForWeek(calendarTable, schedule, j, gradeModel);
+                await setScheduleForWeek(page, calendarTable, schedule, j, gradeModel, programModel.name);
             } else {
                 console.error("Calendar table not found after DOM change.");
             }
@@ -164,11 +174,9 @@ const setScheduleForProgram = async (page, programModel) => {
 
         process.stdout.write("DONE\n")
     }
-
-    return schedule;
 };
 
-const setScheduleForWeek = async (calendarTable, schedule, week, gradeModel) => {
+const setScheduleForWeek = async (page, calendarTable, schedule, week, gradeModel) => {
     if (calendarTable) {
         const inputs = await calendarTable.$$("input");
 
@@ -182,45 +190,58 @@ const setScheduleForWeek = async (calendarTable, schedule, week, gradeModel) => 
 
             if (id && id.endsWith("Hour")) {
                 if (value) {
-                    const subjectWithType = await inputs[i + 2].evaluate((element) =>
-                        element.getAttribute("value")
-                    );
-                    const groupValue = await inputs[i + 1].evaluate((element) =>
-                        element.getAttribute("value")
-                    );
+                    await inputs[i].click();
 
-                    const lastSpaceIndex = subjectWithType.lastIndexOf(" ");
+                    await page.waitForFunction(
+                        (selector) => { return window.getComputedStyle(document.getElementById(selector)).display !== 'none' },
+                        {}, dialogClass.substring(1));
 
-                    const type = subjectWithType
-                        .substring(lastSpaceIndex + 1)
-                        .replace(/[()]/g, "");
-                    const subject = subjectWithType.slice(0, lastSpaceIndex);
+                    const groups = await page.$$eval(dialogGroupTable, tds => tds.map((td) => { return td.innerText }));
+                    const professors = await page.$$eval(dialogProfessorTable, tds => tds.map((td) => { return td.innerText }));
+                    const classrooms = await page.$$eval(dialogClassroomTable, tds => tds.map((td) => { return td.innerText }));
+                    const subjects = await page.$$eval(dialogSubjectTable, tds => tds.map((td) => { return td.innerText }));
 
-                    const valueSplit = value.split(", ");
+                    const testValue = await page.$("#showDetailForm\\:j_idt1380");
+                    if (testValue !== null) {
+                        // for some weird entries with a different popup
+                        // example at IPT UNI, 3. letnik, week 10, wednesday 13:00
+                        await page.click(dialogCloseButton);
+                        process.stdout.write(">> skipping entry")
+                        continue;
+                    }
+
+                    const hourFrom = await page.$eval(dialogHourFromField, (select) => select.value);
+                    const hourTo = await page.$eval(dialogHourToField, (select) => select.value);
+                    const type = await page.$eval(dialogTypeField, (select) => select.value);
+
+                    await page.click(dialogCloseButton);
+
+                    await page.waitForFunction(
+                        (selector) => { return window.getComputedStyle(document.getElementById(selector)).display === 'none' },
+                        {}, dialogClass.substring(1));
+
                     const timeValues = id.split(":");
-                    const groupSplit = groupValue.split(" ");
-
                     const day = parseInt(timeValues[4]);
-                    const timeIndex = timeValues[2];
 
-                    const professor = valueSplit[0];
-                    const classroom = valueSplit[1];
+                    const currentProgram = await page.$eval(programValueCssSelector, (select) => select.textContent);
+                    assert(currentProgram === currentProgram.toString(), `Current program must be '${currentProgram}' at this point and not '${currentProgram}'`);
 
-                    const group =
-                        groupSplit[groupSplit.length - 2] +
-                        groupSplit[groupSplit.length - 1];
+                    const currentYearNum = await page.$eval(yearValueCssSelector, (select) => select.textContent);
+                    assert(currentYearNum === gradeModel.grade.toString(), `Current year must be '${gradeModel.grade}' at this point and not '${currentYearNum}'`);
 
-                    const time = startTime + timeIndex / 2;
+                    const currentWeekNum = await page.$eval(weekValueCssSelector, (select) => select.textContent);
+                    assert(currentWeekNum === week.toString(), `Current week must be '${week}' at this point and not '${currentYearNum}'`);
 
                     schedule.push(new Schedule({
                         gradeId: gradeModel._id,
-                        professor: professor,
-                        classroom: classroom,
+                        professor: professors[0].split("\n")[0],
+                        classroom: classrooms[0].split("\n")[0],
                         type: type,
-                        group: group,
-                        subject: subject,
+                        groups: groups[0].split("\n"),
+                        subject: subjects[0].split("\n")[0],
                         day: day,
-                        time: time,
+                        hourFrom: hourFrom,
+                        hourTo: hourTo,
                         week: week,
                     }));
                 }

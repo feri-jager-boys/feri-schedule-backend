@@ -5,10 +5,11 @@ const scheduleSchema = new mongoose.Schema({
     professor: { type: String },
     classroom: { type: String },
     type: { type: String },
-    group: { type: String },
+    groups: [{ type: String }],
     subject: { type: String },
     day: { type: Number },
-    time: { type: String },
+    hourFrom: { type: String },
+    hourTo: { type: String },
     week: { type: Number }
 }, { timestamps: true, _id: true });
 
