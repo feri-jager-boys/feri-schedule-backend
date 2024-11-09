@@ -13,12 +13,10 @@ const { updateSchedule } = require('./implementations/updateData');
 const { connectToDatabase} = require('./database/connection');
 
 app.use(cors({
-  origin: ["http://localhost:4200"],
-  method: ["GET", "POST", "PATCH", "DELETE"],
-  credentials: true
+  origin: '*',
+  methods: ["GET", "POST", "PATCH", "DELETE"],
 }));
 
-// Move the JSON parser here
 app.use(express.json());
 app.use(cookieParser());
 app.use(bodyParser.urlencoded({ extended: true }));
