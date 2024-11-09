@@ -4,14 +4,13 @@ const bodyParser = require('body-parser');
 const cookieParser = require('cookie-parser');
 const cron = require('node-cron');
 
-const { authenticateJWT } = require('./middleware');
 const updateDataRouter = require('./routes/updateData');
 const scheduleRouter = require('./routes/schedule');
 const usersRouter = require('./routes/users');
 
 const app = express();
 const { updateSchedule } = require('./implementations/updateData');
-const { connectToMongoDB, connectToDatabase} = require('./database/connection');
+const { connectToDatabase} = require('./database/connection');
 
 app.use(cors({
   origin: ["http://localhost:4200"],

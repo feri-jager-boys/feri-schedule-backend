@@ -2,17 +2,31 @@ const Schedule = require('../models/schedule');
 const Program = require('../models/program');
 const Grade = require('../models/grade');
 
-const getFullSchedule = async () => {
+const getFullScheduleForUser = async (req, res) => {
     try {
-        const schedules = await Schedule.find();
-        return schedules;
+        const gradeId = req.user.grade;
+        const week = req.params.week;
+        const schedules = await Schedule.find({gradeId: gradeId, week});
+        res.send(schedules);
     } catch (error) {
         console.error("Error fetching schedules:", error);
         throw error;
     }
 };
 
-const getPrograms = async () => {
+const getFullSchedule = async (req, res) => {
+    try {
+        const gradeId = req.params.grade;
+        const week = req.params.week;
+        const schedules = await Schedule.find({gradeId: gradeId, week});
+        res.send(schedules);
+    } catch (error) {
+        console.error("Error fetching schedules:", error);
+        res.status(500).send("Error fetching schedules");
+    }
+};
+
+const getPrograms = async (req, res) => {
     try {
         const programs = await Program.find();
 
@@ -47,11 +61,11 @@ const getPrograms = async () => {
             })
         }
 
-        return response;
+        res.send(response);
     } catch (error) {
         console.error("Error fetching programs:", error);
-        throw error;
+       res.status(500).send("Error fetching programs");
     }
 };
 
-module.exports = { getFullSchedule, getPrograms };
+module.exports = { getFullScheduleForUser, getFullSchedule, getPrograms };

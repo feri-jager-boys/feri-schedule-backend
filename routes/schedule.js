@@ -1,19 +1,12 @@
 const express = require('express');
 const router = express.Router();
+const { authenticateJWT } = require('../middleware');
 
-const { getFullSchedule, getPrograms } = require('../implementations/schedule');
+const { getFullScheduleForUser, getPrograms, getFullSchedule} = require('../implementations/schedule');
 
-// schedule/getFull -> get the full schedule from the database
-router.get('/getFull',function(req, res, next) {
-    getFullSchedule().then((result) => {
-        res.json({result});
-    });
-});
+router.get('/getFullForUser/:week', authenticateJWT, getFullScheduleForUser);
+router.get('/getFull/:grade/:week', getFullSchedule);
 
-router.get('/getPrograms',function(req, res, next) {
-    getPrograms().then((result) => {
-        res.json({result});
-    });
-});
+router.get('/getPrograms', getPrograms);
 
 module.exports = router;

@@ -7,9 +7,8 @@ exports.authenticateJWT = (req, res, next) => {
     if (!token) {
         return res.sendStatus(403);
     }
-    const bearerToken = token.split(' ')[1];
 
-    jwt.verify(bearerToken, process.env.JWT_SECRET, (err, user) => {
+    jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
         if (err) {
             console.log(err)
             return res.sendStatus(403);
@@ -17,7 +16,8 @@ exports.authenticateJWT = (req, res, next) => {
 
         req.user = {
             id: user.userId,
-            username: user.username
+            username: user.username,
+            grade: user.grade
         };
 
         next();
