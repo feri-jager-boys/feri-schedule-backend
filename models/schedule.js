@@ -1,18 +1,17 @@
 const mongoose = require('mongoose');
 
 const scheduleSchema = new mongoose.Schema({
-    id: { type: Number, required: true },
-    // configuration_id: { type: Number, required: true },
-    professor: { type: String, maxlength: 45 },
-    classroom: { type: String, maxlength: 45 },
-    type: { type: String, maxlength: 45 },
-    group: { type: String, maxlength: 45 },
-    subject: { type: String, maxlength: 45 },
-    day: { type: String, maxlength: 45 },
-    time: { type: String, maxlength: 45 },
-    week: { type: String, maxlength: 45 }
-}, { timestamps: true });
+    gradeId: { type: mongoose.Schema.Types.ObjectId, ref: 'grades' },
+    professor: { type: String },
+    classroom: { type: String },
+    type: { type: String },
+    group: { type: String },
+    subject: { type: String },
+    day: { type: Number },
+    time: { type: String },
+    week: { type: Number }
+}, { timestamps: true, _id: true });
 
-const Schedule = mongoose.model('schedule_items', scheduleSchema);
+const Schedule = mongoose.model('schedules', scheduleSchema);
 
 module.exports = Schedule;

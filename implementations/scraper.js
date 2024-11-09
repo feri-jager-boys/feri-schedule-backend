@@ -1,6 +1,10 @@
 const puppeteer = require("puppeteer");
 const assert = require("node:assert");
 
+const Program = require("../models/program");
+const Grade = require("../models/grade");
+const Schedule = require("../models/schedule");
+
 const url = "https://www.wise-tt.com/wtt_um_feri/index.jsp";
 
 const programClickCssSelector = "#form\\:j_idt175";
@@ -22,7 +26,7 @@ const htmlProgressClassName = "progress";
 
 const startTime = 7;
 
-const getFullSchedule = async (result) => {
+const setFullSchedule = async (_) => {
     return new Promise(async (resolve, reject) => {
         const browser = await puppeteer.launch({
             headless: "new",
@@ -35,8 +39,6 @@ const getFullSchedule = async (result) => {
             waitUntil: "domcontentloaded",
         });
 
-        let schedule = [];
-
         const programOptions = await page.$$(programOptionsCssSelector);
 
         console.log("Starting to parse")
@@ -45,35 +47,49 @@ const getFullSchedule = async (result) => {
             await page.$eval(programClickCssSelector, el => el.click());
             await page.$eval(programDirectValueClickCssSelector + i.toString(), el => el.click());
 
-            await new Promise((resolve) => setTimeout(resolve, 500));
+            await new Promise((_) => setTimeout(_, 500));
 
-            const currentProgramName = await page.$eval(programValueCssSelector, (select) => select.textContent);
+            const currentProgramName = await page.$eval(programValueCssSelector, select => select.textContent);
 
             console.log(`> program ${currentProgramName}`)
 
-            await getScheduleForProgram(page, schedule, currentProgramName);
+            const programModel = await Program.findOne({ name: currentProgramName }).then(
+                async (existingElement) => {
+                    if (existingElement == null) {
+                        const program = new Program({name: currentProgramName});
+                        await program.save();
+                        console.log("> saved program to db")
+                        return program;
+                    }
+                    return existingElement;
+                }
+            );
+
+            await setScheduleForProgram(page, programModel);
         }
 
-        resolve(schedule);
-
         await browser.close();
+
+        resolve();
     });
 };
 
-const getScheduleForProgram = async (page, schedule, currentProgram) => {
+const setScheduleForProgram = async (page, programModel) => {
     const yearOptions = await page.$$(yearOptionsCssSelector);
     const weekOptions = await page.$$(weekOptionsCssSelector);
 
     for (let i = 1; i < yearOptions.length; i++) {
         console.log(`>> year ${i}`);
 
-        await page.waitForFunction((cls) => { return !document.documentElement.classList.contains(cls) }, htmlProgressClassName);
+        await page.waitForFunction(
+            (cls) => { return !document.documentElement.classList.contains(cls) },
+            {}, htmlProgressClassName);
 
         if (i !== 0) {
             await page.$eval(yearClickCssSelector, el => el.click());
             await page.$eval(yearDirectValueClickCssSelector + i, el => el.click());
 
-            await new Promise((resolve) => setTimeout(resolve, 500));
+            await new Promise((_) => setTimeout(_, 500));
 
             await page.waitForFunction(
                 (select, value) => { return document.querySelector(select).textContent === value.toString() },
@@ -83,12 +99,26 @@ const getScheduleForProgram = async (page, schedule, currentProgram) => {
         const currentYearNum = await page.$eval(yearValueCssSelector, (select) => select.textContent);
         assert(currentYearNum === i.toString(), `Current year must be ${i} at this point and not '${currentYearNum}'`);
 
+        const gradeModel = await Grade.findOne({ programId: programModel._id, grade: parseInt(currentYearNum) }).then(
+            async (existingElement) => {
+                if (existingElement == null) {
+                    const grade = new Grade({ programId: programModel._id, grade: parseInt(currentYearNum) });
+                    await grade.save();
+                    console.log("> saved grade to db")
+                    return grade;
+                }
+                return existingElement;
+            }
+        );
+
+        var schedule = [];
+
         console.log(">>> moving week to 1");
 
         await page.$eval(weekClickCssSelector, el => el.click());
         await page.$eval(weekDirectValueClickCssSelector + "0", el => el.click());
 
-        await new Promise((resolve) => setTimeout(resolve, 200));
+        await new Promise((_) => setTimeout(_, 200));
 
         await page.waitForFunction(
             (select, value) => { return document.querySelector(select).textContent === value.toString() },
@@ -102,31 +132,35 @@ const getScheduleForProgram = async (page, schedule, currentProgram) => {
         for (let j = 1; j <= weekOptions.length; j++) {
             process.stdout.write(`${j} `)
 
-            await page.waitForFunction((cls) => { return !document.documentElement.classList.contains(cls) }, htmlProgressClassName);
+            await page.waitForFunction(
+                (cls) => { return !document.documentElement.classList.contains(cls) },
+                {}, htmlProgressClassName);
 
-            if (j !== 1) {
-                await page.$eval(weekClickCssSelector, el => el.click());
-                await page.$eval(weekDirectValueClickCssSelector + (j - 1).toString(), el => el.click());
+            await page.$eval(weekClickCssSelector, el => el.click());
+            await page.$eval(weekDirectValueClickCssSelector + (j - 1).toString(), el => el.click());
 
-                await new Promise((resolve) => setTimeout(resolve, 500));
+            await new Promise((_) => setTimeout(_, 500));
 
-                await page.waitForFunction((cls) => { return !document.documentElement.classList.contains(cls) }, htmlProgressClassName);
+            await page.waitForFunction(
+                (cls) => { return !document.documentElement.classList.contains(cls) },
+                {}, htmlProgressClassName);
 
-                await page.waitForFunction(
-                    (select, value) => { return document.querySelector(select).textContent === value.toString() },
-                    {}, weekValueCssSelector, j);
-            }
+            await page.waitForFunction(
+                (select, value) => { return document.querySelector(select).textContent === value.toString() },
+                {}, weekValueCssSelector, j);
 
             const testWeek = await page.$eval(weekValueCssSelector, (select) => select.textContent);
             assert(testWeek === j.toString(), `Current week must be '${j}' at this point and not '${testWeek}'`);
 
             const calendarTable = await page.$("#mainCalendar");
             if (calendarTable) {
-                await getScheduleForWeek(calendarTable, schedule, j, currentProgram, currentYearNum);
+                await setScheduleForWeek(calendarTable, schedule, j, gradeModel);
             } else {
                 console.error("Calendar table not found after DOM change.");
             }
         }
+
+        await Schedule.insertMany(schedule);
 
         process.stdout.write("DONE\n")
     }
@@ -134,7 +168,7 @@ const getScheduleForProgram = async (page, schedule, currentProgram) => {
     return schedule;
 };
 
-const getScheduleForWeek = async (calendarTable, schedule, week, program, year) => {
+const setScheduleForWeek = async (calendarTable, schedule, week, gradeModel) => {
     if (calendarTable) {
         const inputs = await calendarTable.$$("input");
 
@@ -178,18 +212,17 @@ const getScheduleForWeek = async (calendarTable, schedule, week, program, year) 
 
                     const time = startTime + timeIndex / 2;
 
-                    schedule.push({
-                        professor,
-                        classroom,
-                        type,
-                        group,
-                        subject,
-                        day,
-                        time,
-                        week,
-                        program,
-                        year,
-                    });
+                    schedule.push(new Schedule({
+                        gradeId: gradeModel._id,
+                        professor: professor,
+                        classroom: classroom,
+                        type: type,
+                        group: group,
+                        subject: subject,
+                        day: day,
+                        time: time,
+                        week: week,
+                    }));
                 }
             }
         }
@@ -198,4 +231,4 @@ const getScheduleForWeek = async (calendarTable, schedule, week, program, year) 
     return schedule;
 };
 
-module.exports = {getFullSchedule}
+module.exports = { setFullSchedule };
