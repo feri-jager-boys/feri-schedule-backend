@@ -49,6 +49,7 @@ const getPrograms = async (req, res) => {
 
                 gradesResponse.push({
                     grade: grade.grade,
+                    gradeId: grade._id,
                     groups: uniqueGroupNames,
                     subjects: uniqueSubjects,
                 })
